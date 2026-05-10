@@ -114,16 +114,16 @@ curl -X POST http://localhost:8080/api/decks/1/cards \
   -d '{"term":"JVM","definition":"Java Virtual Machine"}'
 ```
 
-## Project Structure (4-Layered Architecture)
+## Project Structure (CQS Architecture)
 
-The project follows Domain-Driven Design principles, structured into 4 strict layers:
+The project follows Domain-Driven Design principles with Command-Query Separation (CQS), structured into 4 strict layers:
 
 ```
 src/main/java/com/flashcard/
-├── domain/          # Pure business logic
-├── application/     # Use Cases and Application Ports
-├── infrastructure/  # DB Adapters, JPA Entities, Mappers, Security config
-└── presentation/    # REST Controllers, DTOs, Exception Handling
+├── domain/          # Pure business logic (Aggregates, Value Objects, Factories, Errors)
+├── application/     # Commands, Queries, and their Handlers. Read Repository interfaces
+├── infrastructure/  # JPA Adapters (Read/Write), Security config, Spring Boot setup
+└── presentation/    # REST Controllers, Input DTOs, Exception Handling
 ```
 
-For more details on the architecture, see [docs/analysis/lab2.md](docs/analysis/lab2.md).
+For more details on the architecture, see [docs/analysis/lab3.md](docs/analysis/lab3.md).
