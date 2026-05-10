@@ -38,7 +38,7 @@ The infrastructure layer gained two new adapters: `DeckReadRepositoryAdapter` an
 
 **Read repository duplication.** The `DeckReadRepositoryAdapter` partially duplicates logic from the domain-level `DeckRepositoryAdapter` (e.g., looking up a user by email, finding a deck by ID). This is the conscious trade-off for keeping the read path independent of the domain model.
 
-**Learning curve.** Developers must understand when to use a Command vs a Query, where to place read-only logic, and why returning data from a command handler is discouraged. The mental model is more demanding than a straightforward UseCase.
+**Learning curve.** Developers must understand when to use a Command vs a Query, where to place read-only logic and why returning data from a command handler is discouraged. The mental model is more demanding than a straightforward UseCase.
 
 ## 4. How do Command/Query Handlers differ from a single Service?
 
@@ -52,22 +52,23 @@ This separation means that a command handler never needs to know about the read 
 
 ## 5. How does CQS impact extensibility?
 
-**Adding a new command:** Create a new `Command` record, a new `CommandHandler` class, and wire it into the controller. No existing code is modified.
+CQS dramatically improves extensibility by naturally enforcing the Open-Closed Principle. The architecture becomes open for extension but closed for modification.
 
-**Adding a new query:** Create a new `Query` record, add a method to the `ReadRepository` interface and its adapter, create a `QueryHandler`, and wire it into the controller. Again, no existing code is modified.
+**Adding a new command or query:** 
+To add a new operation (e.g., `ArchiveDeckCommand`), you simply create a new command record and a new dedicated `ArchiveDeckCommandHandler`. You do not modify any existing handlers. Because the new handler is completely isolated, there is zero risk of causing regressions in existing features. Furthermore, the handler only injects the specific dependencies it needs.
 
-**Contrast with Lab 2:** Adding a new operation required creating a new UseCase, but the UseCase might have needed to share mappers, repository logic, or DTO construction patterns with other use cases, increasing coupling.
+**Contrast with Lab 2:**
+In Lab 2, adding a new operation required creating a new `UseCase`. While better than a single massive `Service`, these UseCases often shared DTO mappers, repository logic, or data-fetching helper methods for building the response. If you needed to modify a shared mapper for a new UseCase, you risked breaking the response structure of an existing UseCase. By strictly separating Commands (which return no data) and Queries (which use dedicated read projections), CQS eliminates this coupling, making each feature truly additive.
 
-The CQS pattern ensures that each new feature is an additive change — new files, not modified files. This is the Open-Closed Principle in action.
 
 ## 6. Does the Query return structure differ from the domain model? Why does this matter?
 
-Yes. Query handlers return `DeckResult` and `CardResult` records — flat DTOs containing only the fields needed by the API consumer. The domain model contains rich types like `DeckTitle` (a value object with validation), `CardTerm`, and `CardDefinition`, along with behavior methods (`isOwnedBy()`, `updateTitle()`).
+Yes, the structures differ fundamentally. Queries return simple, flat DTOs (`DeckResult`, `CardResult`), whereas the domain model consists of rich Aggregates with encapsulated behavior and strongly typed Value Objects (like `DeckTitle` or `CardDefinition`).
 
 This matters for three reasons:
 
-1. **Performance.** The read path bypasses domain model construction entirely. `DeckReadRepositoryAdapter` maps JPA entities directly to `DeckResult` DTOs, skipping value object instantiation and domain invariant checks that are irrelevant for reads.
+1. **Separation of concerns:** The domain model is designed specifically to protect business invariants and handle complex state transitions (the write side). The query result structure, on the other hand, is tailored exclusively to the needs of the client UI (the read side).
 
-2. **Schema independence.** The read model can evolve independently of the domain model. Adding a computed field to `DeckResult` (e.g., `cardCount`) does not require changes to the `Deck` aggregate. Conversely, adding a new domain invariant does not affect the query pipeline.
+2. **Avoiding over-fetching and optimizing performance:** To display a list of decks, the API doesn't need to load the full `Deck` aggregate with all its encapsulated rules and relationships from the database. The `ReadRepository` can execute an optimized SQL query that fetches exactly the columns needed and projects them directly into a DTO, bypassing the heavy ORM-to-Domain mapping overhead.
 
-3. **Future CQRS readiness.** If the project ever needs to scale reads independently of writes (e.g., a denormalized read database or a materialized view), the read repositories can be swapped to a different data source without touching the domain or command logic.
+3. **Security and data hiding:** A domain aggregate might hold internal state, sensitive calculation fields, or versioning data required for business logic. By using a distinct read structure, we guarantee that we only expose the specific data intended for the client, preventing accidental data leaks.
