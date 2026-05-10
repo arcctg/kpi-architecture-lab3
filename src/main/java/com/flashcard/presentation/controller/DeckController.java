@@ -1,7 +1,8 @@
 package com.flashcard.presentation.controller;
 
 import com.flashcard.application.dto.DeckResult;
-import com.flashcard.application.usecase.deck.*;
+import com.flashcard.application.deck.command.*;
+import com.flashcard.application.deck.query.*;
 import com.flashcard.domain.model.DomainPage;
 import com.flashcard.presentation.dto.request.CreateDeckRequest;
 import com.flashcard.presentation.dto.request.UpdateDeckRequest;
@@ -16,22 +17,22 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/decks")
 public class DeckController {
 
-    private final CreateDeckUseCase createDeckUseCase;
-    private final GetDeckUseCase getDeckUseCase;
-    private final ListDecksUseCase listDecksUseCase;
-    private final UpdateDeckUseCase updateDeckUseCase;
-    private final DeleteDeckUseCase deleteDeckUseCase;
+    private final CreateDeckCommandHandler createDeckCommandHandler;
+    private final GetDeckQueryHandler getDeckQueryHandler;
+    private final ListDecksQueryHandler listDecksQueryHandler;
+    private final UpdateDeckCommandHandler updateDeckCommandHandler;
+    private final DeleteDeckCommandHandler deleteDeckCommandHandler;
 
-    public DeckController(CreateDeckUseCase createDeckUseCase,
-                          GetDeckUseCase getDeckUseCase,
-                          ListDecksUseCase listDecksUseCase,
-                          UpdateDeckUseCase updateDeckUseCase,
-                          DeleteDeckUseCase deleteDeckUseCase) {
-        this.createDeckUseCase = createDeckUseCase;
-        this.getDeckUseCase = getDeckUseCase;
-        this.listDecksUseCase = listDecksUseCase;
-        this.updateDeckUseCase = updateDeckUseCase;
-        this.deleteDeckUseCase = deleteDeckUseCase;
+    public DeckController(CreateDeckCommandHandler createDeckCommandHandler,
+                          GetDeckQueryHandler getDeckQueryHandler,
+                          ListDecksQueryHandler listDecksQueryHandler,
+                          UpdateDeckCommandHandler updateDeckCommandHandler,
+                          DeleteDeckCommandHandler deleteDeckCommandHandler) {
+        this.createDeckCommandHandler = createDeckCommandHandler;
+        this.getDeckQueryHandler = getDeckQueryHandler;
+        this.listDecksQueryHandler = listDecksQueryHandler;
+        this.updateDeckCommandHandler = updateDeckCommandHandler;
+        this.deleteDeckCommandHandler = deleteDeckCommandHandler;
     }
 
     @GetMapping
@@ -39,7 +40,7 @@ public class DeckController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
             Authentication auth) {
-        DomainPage<DeckResult> results = listDecksUseCase.execute(auth.getName(), page, size);
+        DomainPage<DeckResult> results = listDecksQueryHandler.handle(new ListDecksQuery(auth.getName(), page, size));
         DomainPage<DeckResponse> response = new DomainPage<>(
                 results.content().stream().map(DeckResponse::from).toList(),
                 results.page(), results.size(), results.totalElements(), results.totalPages()
@@ -50,14 +51,14 @@ public class DeckController {
     @PostMapping
     public ResponseEntity<DeckResponse> create(@Valid @RequestBody CreateDeckRequest request,
                                                Authentication auth) {
-        DeckResult result = createDeckUseCase.execute(
-                request.title(), request.description(), auth.getName());
+        Long deckId = createDeckCommandHandler.handle(new CreateDeckCommand(request.title(), request.description(), auth.getName()));
+        DeckResult result = getDeckQueryHandler.handle(new GetDeckQuery(deckId, auth.getName()));
         return ResponseEntity.status(HttpStatus.CREATED).body(DeckResponse.from(result));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<DeckResponse> get(@PathVariable Long id, Authentication auth) {
-        DeckResult result = getDeckUseCase.execute(id, auth.getName());
+        DeckResult result = getDeckQueryHandler.handle(new GetDeckQuery(id, auth.getName()));
         return ResponseEntity.ok(DeckResponse.from(result));
     }
 
@@ -65,14 +66,14 @@ public class DeckController {
     public ResponseEntity<DeckResponse> update(@PathVariable Long id,
                                                @Valid @RequestBody UpdateDeckRequest request,
                                                Authentication auth) {
-        DeckResult result = updateDeckUseCase.execute(
-                id, request.title(), request.description(), auth.getName());
+        Long deckId = updateDeckCommandHandler.handle(new UpdateDeckCommand(id, request.title(), request.description(), auth.getName()));
+        DeckResult result = getDeckQueryHandler.handle(new GetDeckQuery(deckId, auth.getName()));
         return ResponseEntity.ok(DeckResponse.from(result));
     }
 
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, Authentication auth) {
-        deleteDeckUseCase.execute(id, auth.getName());
+        deleteDeckCommandHandler.handle(new DeleteDeckCommand(id, auth.getName()));
         return ResponseEntity.noContent().build();
     }
 }
